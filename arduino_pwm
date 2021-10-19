@@ -1,0 +1,107 @@
+/******************************************************************************/
+/*                                                                            */
+/*   ┌────┐ ┌────┐                CONCURRENT FSM ARDUINO IMPLEMENTATION       */
+/*   └┐  ┌┘ └┐╔══╧═╗                                                          */
+/*    │  │   │╚╗  ╔╝      This code was designed as an aplication of          */
+/*    │  │   │ ║  ║       implementing concurrent fsm on a microcontroller:   */
+/*    │  │   │ ║  ║       Digital PWM creation                                */
+/*    │╔═╧══╗│ ║  ║                                                           */
+/*    │╚╗  ╔╝┘ ║  ║                                                           */
+/*    └┐║  ╚╗ ╔╝  ║       DEVELOPED BY: Juan Sebastián Bustacara Rodríguez    */
+/*     └╚╗  ╚═╝  ╔╝                     Juan Guillermo Pérez Echeverry        */
+/*      └╚╗     ╔╝                      Marlon Johan Gómez Sierra             */
+/*        ╚═════╝                       Juan Pablo García Rodríguez           */
+/*                        Bogota, D.C., 2021.                                 */
+/*                                                                            */
+/*          Copyright (C) Departament de Electronics                          */
+/*                        School of Engineering                               */
+/*                        Pontificia Universidad Javeriana                    */
+/*                        Bogota - Colombia - South America                   */
+/*                                                                            */
+/******************************************************************************/
+
+/************************** Definition of Data Types **************************/
+
+typedef enum {
+HIGH_LEVEL, LOW_LEVEL} PWM_STATE_T;
+
+typedef struct {
+    uint8_t     current_duty;
+    int         pin_out;
+    uint32_t    previous_time;
+    uint32_t    time_HI, time_LO;
+    PWM_STATE_T state;
+}   ANALOG_WRITE_T;
+
+
+/************************** Prototypes of Functions ***************************/
+
+void MyAnalogWriteSetup(ANALOG_WRITE_T *fsm, uint8_t duty, uint32_t period, int pin);
+void MyAnalogWrite(ANALOG_WRITE_T *fsm);
+
+/********************** Definition of Main Code ************************/
+*
+*   Description: Setup PWM objects with different atributes,
+*                Implement all FSM concurrently
+*
+************************************************************************/
+
+ANALOG_WRITE_T led[4];
+
+void setup(){
+MyAnalogWriteSetup( &led[0], 50, 16666, 6);
+MyAnalogWriteSetup( &led[1], 230, 16666, 7);
+MyAnalogWriteSetup( &led[2],  50, 8000000, 8);
+MyAnalogWriteSetup( &led[3], 127, 10000000, 9);
+}
+
+void loop(){
+MyAnalogWrite( &led[0]);
+MyAnalogWrite( &led[1]);
+MyAnalogWrite( &led[2]);
+MyAnalogWrite( &led[3]);
+}
+
+/********************** Definition of Public Functions ************************/
+
+/*FN****************************************************************************
+*
+*   void MyAnalogWriteSetup(ANALOG_WRITE_T *fsm, uint8_t duty, uint32_t period, int pin);
+*
+*   Purpose: Setup PWM atributes
+*
+*   Return:  void
+*
+*******************************************************************************/
+
+void MyAnalogWriteSetup(ANALOG_WRITE_T *fsm, uint8_t duty, uint32_t period, int pin){
+fsm->current_duty = duty;
+fsm->pin_out = pin;
+fsm->previous_time = micros();
+fsm->time_HI = (uint32_t)((duty*period)>>8);
+fsm->time_LO = period - (uint32_t)((duty*period)>>8);
+fsm->state = HIGH_LEVEL;
+pinMode(pin, OUTPUT);
+digitalWrite(pin, HIGH);
+}
+
+
+/*FN****************************************************************************
+*
+*   void MyAnalogWrite(ANALOG_WRITE_T *fsm);
+*
+*   Purpose: Step forward a PWM FSM
+*
+*   Return:  void
+*
+*******************************************************************************/
+
+void MyAnalogWrite(ANALOG_WRITE_T *fsm){
+switch (fsm->state){
+case HIGH_LEVEL:
+    if( micros() - fsm->previous_time >= fsm->time_HI){
+        digitalWrite(fsm->pin_out, LOW);
+        fsm->previous_time = micros();
+        fsm->state = LOW_LEVEL;
+    }
+    break;
